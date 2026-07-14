@@ -1,36 +1,39 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Toronto Top 100
 
-## Getting Started
+A mobile-first web app for the "Toronto Top 100 Under $100" restaurant list. It finds the restaurants near you, filters by vegetarian-friendly and visited status, and opens each spot directly in Google Maps. Visited check-offs sync across devices through a shared backend, so two people can use the same list.
 
-First, run the development server:
+Built with Next.js, shadcn/ui, [mapcn](https://mapcn.dev) (MapLibre), Inter from [rsms.me/inter](https://rsms.me/inter), and Upstash Redis.
+
+## Run locally
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000. Without Upstash env vars, visited state is kept in memory (resets on server restart), which is fine for development. Geolocation works on localhost; to simulate a location, append `?lat=43.6532&lng=-79.3832` to the URL.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Deploy (Vercel + Upstash, both free)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Push this folder to a GitHub repository.
+2. On [vercel.com](https://vercel.com), choose **Add New → Project**, import the repository, and deploy (defaults are fine).
+3. In the Vercel project, go to **Storage → Create Database → Upstash (Redis)** in the marketplace, and create the free database. Vercel injects `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` automatically.
+4. Redeploy. Share the URL with the other person — anyone with the link can toggle visited state, so keep it private.
 
-## Learn More
+On a phone, open the URL and use "Add to Home Screen" to install it like an app.
 
-To learn more about Next.js, take a look at the following resources:
+## Updating the list
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+When the Google Sheet changes, download it again as a web page and run:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+node scripts/parse-sheet.mjs "C:\path\to\Copy of Sheet1.html"
+```
 
-## Deploy on Vercel
+This rewrites `src/data/restaurants.json`, keeping existing coordinates and Google Maps links by restaurant id. New restaurants come out with `lat: null` and are listed in the script output — they need coordinates and a `gmapsUrl` filled in (easiest: ask Claude to resolve them the same way the original 100 were resolved).
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Data model
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+`src/data/restaurants.json` — one entry per restaurant: `id`, `name`, `cuisine`, `area`, `city`, `vegFriendly`, `visitedInitial` (from the sheet's color coding), `lat`, `lng`, `address`, `gmapsUrl` (canonical Google Maps place link).
+
+Visited state lives in Upstash Redis as a set (`visited`), seeded from `visitedInitial` on first request, and is read/written via `/api/visited`.
