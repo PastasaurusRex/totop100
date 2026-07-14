@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { LatLng } from "@/lib/geo";
 
 export type LocationState =
@@ -8,12 +8,17 @@ export type LocationState =
   | { status: "granted"; position: LatLng }
   | { status: "denied" | "unavailable"; position: null };
 
+export type UseLocationResult = LocationState & {
+  /** Overwrite the known position, e.g. after a fresh recentre fix. */
+  update: (position: LatLng) => void;
+};
+
 /**
  * Reads the user's location once on mount.
  * Dev override: append ?lat=43.65&lng=-79.40 to simulate a position
  * (the in-app preview browser cannot grant geolocation permission).
  */
-export function useLocation(): LocationState {
+export function useLocation(): UseLocationResult {
   const [state, setState] = useState<LocationState>({ status: "loading", position: null });
 
   useEffect(() => {
@@ -43,5 +48,9 @@ export function useLocation(): LocationState {
     );
   }, []);
 
-  return state;
+  const update = useCallback((position: LatLng) => {
+    setState({ status: "granted", position });
+  }, []);
+
+  return { ...state, update };
 }

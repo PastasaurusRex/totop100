@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Map as MapCanvas,
   MapControls,
@@ -13,7 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ExternalLink, Leaf, Navigation } from "lucide-react";
+import { ExternalLink, Leaf, Loader2, LocateFixed, Navigation } from "lucide-react";
 import { directionsUrl, type Restaurant } from "@/lib/restaurants";
 import { formatDistance, TORONTO, type LatLng } from "@/lib/geo";
 import { cn } from "@/lib/utils";
@@ -30,6 +30,7 @@ type MapViewProps = {
   onSelect: (id: string | null) => void;
   visited: Set<string>;
   onToggleVisited: (id: string, value: boolean) => void;
+  onPositionUpdate: (position: LatLng) => void;
   className?: string;
 };
 
@@ -41,9 +42,11 @@ export function MapView({
   onSelect,
   visited,
   onToggleVisited,
+  onPositionUpdate,
   className,
 }: MapViewProps) {
   const mapRef = useRef<MapRef>(null);
+  const [locating, setLocating] = useState(false);
 
   const geojson = useMemo<GeoJSON.FeatureCollection<GeoJSON.Point, { id: string }>>(
     () => ({
@@ -82,6 +85,37 @@ export function MapView({
     }
   }, [selected]);
 
+  const flyToPosition = useCallback((position: LatLng) => {
+    const map = mapRef.current;
+    if (!map) return;
+    map.flyTo({
+      center: [position.lng, position.lat],
+      zoom: Math.max(map.getZoom(), 14),
+      duration: 1000,
+    });
+  }, []);
+
+  const handleRecentre = useCallback(() => {
+    if (!("geolocation" in navigator)) {
+      if (userPosition) flyToPosition(userPosition);
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocating(false);
+        const position = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        onPositionUpdate(position);
+        flyToPosition(position);
+      },
+      () => {
+        setLocating(false);
+        if (userPosition) flyToPosition(userPosition);
+      },
+      { enableHighAccuracy: true, timeout: 8_000, maximumAge: 0 },
+    );
+  }, [flyToPosition, onPositionUpdate, userPosition]);
+
   const selectedDistance = selected ? distances.get(selected.id) : undefined;
 
   return (
@@ -93,6 +127,19 @@ export function MapView({
       attributionControl={false}
     >
       <MapControls position="bottom-right" />
+      <button
+        type="button"
+        aria-label="Recentre on my location"
+        onClick={handleRecentre}
+        disabled={locating}
+        className="border-border bg-background hover:bg-accent dark:hover:bg-accent/40 focus-visible:ring-ring absolute right-2 bottom-2 z-10 flex size-8 items-center justify-center rounded-md border shadow-sm transition-all focus-visible:ring-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+      >
+        {locating ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          <LocateFixed className="size-4" />
+        )}
+      </button>
       <MapClusterLayer
         data={geojson}
         pointColor={PIN}

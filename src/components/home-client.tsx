@@ -143,6 +143,7 @@ export function HomeClient() {
             onSelect={setSelectedId}
             visited={visited}
             onToggleVisited={toggle}
+            onPositionUpdate={location.update}
           />
           <Button
             size="icon"
